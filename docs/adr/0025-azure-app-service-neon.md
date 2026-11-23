@@ -1,6 +1,6 @@
 # ADR-0025: Azure App Service + Front Door + Neon, defined in Bicep
 
-Status: Accepted · 2026-11-23
+Status: Accepted · 2026-11-23 · amended by ADR-0028 (compute runtime)
 
 ## Context
 
@@ -11,8 +11,9 @@ first-party `/api` on custom domains needed unverified rewrites.
 
 ## Decision
 
-- Compute: Azure App Service (Linux, Node 24 LTS): `app-mqapi-server` with
-  scale-out rules and `app-mqapi-worker` (Always On, one instance).
+- Compute: Azure App Service (Linux, custom container: one Bun image from Azure
+  Container Registry, ADR-0028): `app-mqapi-server` with scale-out rules and
+  `app-mqapi-worker` (Always On, one instance).
 - Edge: Azure Front Door with WAF; `/api/*` → server on every web domain,
   including client custom domains with managed TLS.
 - Database: **Neon** (Azure Native ISV service), one project per deployment, in

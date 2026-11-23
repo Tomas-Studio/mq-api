@@ -1,0 +1,5 @@
+[install]
+# Save exact versions; Effect packages must never float (ADR-0002).
+exact = true
+# Each package resolves only the dependencies it declares (ADR-0024, ADR-0028).
+linker = "isolated"

@@ -1,13 +1,13 @@
 # ADR-0002: Build on Effect v4, pinned exactly
 
-Status: Accepted · 2026-11-23
+Status: Accepted · 2026-11-23 · amended by ADR-0028 (platform package)
 
 ## Context
 
 `effect@4.1.5` is npm `latest`; v3 (`3.22.5`) is `prev`. In v4 the ecosystem
 ships as one version: HTTP, HttpApi, Schema, SQL, RPC, workflow, cluster, AI and
 observability are subpaths of `effect` (`effect/http-api`, `effect/sql`, …), with
-platform, driver and provider packages (`@effect/platform-node`, `@effect/sql-pg`,
+platform, driver and provider packages (`@effect/platform-bun`, `@effect/sql-pg`,
 `@effect/ai-*`, `@effect/vitest`) versioned in lockstep.
 
 `MIGRATION.md` in the reference states that the subpath modules (`ai`, `cluster`,
@@ -24,7 +24,7 @@ Build on Effect v4. Dependencies:
 
 ```
 effect                 4.1.5
-@effect/platform-node  4.1.5
+@effect/platform-bun   4.1.5
 @effect/sql-pg         4.1.5
 @effect/vitest         4.1.5
 @effect/ai-anthropic   4.1.5
@@ -44,7 +44,7 @@ Policy for unstable modules:
 - One dependency family instead of a dozen independently versioned packages.
 - Web search results and model suggestions must be treated as suspect;
   `CLAUDE.md` lists verified v4 idioms and the reference source is authoritative.
-- Requires Node ≥ 22.19 (`@effect/platform-node` engines).
+- Runs on Bun 1.4 (ADR-0028).
 
 ## Alternatives considered
 

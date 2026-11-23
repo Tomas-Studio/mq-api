@@ -95,8 +95,10 @@ mq-api/
 └── CLAUDE.md                Effect v4 conventions for humans and agents
 ```
 
-pnpm workspaces; Turborepo for affected-only tasks. All `effect` and
-`@effect/*` versions pinned exactly and bumped together (ADR-0002).
+Bun workspaces with the isolated linker; `tsc -b` project references for
+incremental type checking; vitest under Bun for tests (ADR-0028). All `effect`
+and `@effect/*` versions pinned exactly and bumped together (ADR-0002).
+Packages are created when the first slice needs them.
 
 ---
 
@@ -171,7 +173,7 @@ security scheme.
 
   | Role | Attributes | Used by |
   |---|---|---|
-  | `mq_migrator` | owns all schemas and tables | migrations, ETL writes |
+  | `mq_migrator` | owns all schemas and tables; the Neon project's owner role, created with the project | migrations, ETL writes; never the runtime |
   | `mq_app` | `NOBYPASSRLS`; member of the context roles | server and worker runtime |
   | `mq_ctx_<context>` | `NOLOGIN`; grants on its own schema only | `SET LOCAL ROLE` per context |
   | `mq_system` | `BYPASSRLS` (or named in policies, see spike S3) | `SystemSql` only |
@@ -369,7 +371,9 @@ Neon project (Azure Native ISV resource), Blob Storage, Key Vault, Application
 Insights, managed identities. Some Neon Bicep resource types are preview API
 versions; if one is unusable, the pipeline provisions that piece with the Neon API.
 
-Runtime: Node 24 LTS (`@effect/platform-node` requires ≥ 22.19).
+Runtime: Bun 1.4 (ADR-0028). Server and worker run from one container image
+(`oven/bun`, pinned by digest) in Azure Container Registry; App Service for
+Containers pulls it with a managed identity, and each app sets its own start command.
 
 ---
 
@@ -438,7 +442,7 @@ commerce invoicing and collection → integrations → reporting + audit.
 | S5 | One direct `LISTEN` connection per instance reconnects cleanly after Neon compute restarts | Short polling of an outbox table |
 | S6 | `@mequest/contract` (Effect v4) runs in Expo / Hermes at an acceptable bundle size | Generate a thin client from OpenAPI for mobile |
 | S7 | Neon resources provision from Bicep (preview API versions) | Neon API step in the pipeline |
-| S8 | App Service offers Node 24 LTS on Linux | Container image on App Service |
+| S8 | The Bun container on App Service passes health checks, streams SSE through Front Door, stops gracefully on redeploy, and holds the worker's direct `LISTEN` and advisory-lock connections | Azure Container Apps with the same image |
 
 ---
 
@@ -446,7 +450,7 @@ commerce invoicing and collection → integrations → reporting + audit.
 
 | Area | Default |
 |---|---|
-| Runtime and tooling | Node 24 LTS, pnpm, Turborepo, TypeScript strict; lint and format matched to the Effect repo's own config |
+| Runtime and tooling | Bun 1.4 (runtime, workspaces, scripts), vitest under Bun, TypeScript 7 strict via `tsc -b`, oxlint + dprint matched to the Effect repo's native rules (ADR-0028) |
 | Packages | `@mequest/*` on GitHub Packages, which requires a GitHub organisation named `mequest` (otherwise `@itaobong/*`) |
 | Email | Resend behind a `Mailer` service; SendGrid as an alternative Layer |
 | AI | `effect/ai` with Anthropic and OpenAI Layers behind `MeteredLanguageModel`; dedicated instances may bring their own key (credits then don't apply) |

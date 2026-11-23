@@ -31,6 +31,7 @@ All accepted on 2026-11-23. Overview: [../architecture.md](../architecture.md).
 | [0025](0025-azure-app-service-neon.md) | Azure App Service + Front Door + Neon, defined in Bicep |
 | [0026](0026-tdd-real-postgres.md) | Test-first, integration-first on real Postgres |
 | [0027](0027-walking-skeleton-first.md) | Walking skeleton first, then dependency order |
+| [0028](0028-bun-runtime-and-toolchain.md) | Bun runtime and toolchain (amends 0002, 0025, 0026) |
 
 New decisions get the next number. A decision is changed by a new ADR that
 supersedes the old one; the old one's status becomes `Superseded by ADR-NNNN`.

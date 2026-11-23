@@ -1,6 +1,9 @@
 reference/
 node_modules/
 dist/
+.tsbuild/
+*.tsbuildinfo
+coverage/
 .env
 .env.*
 !.env.example

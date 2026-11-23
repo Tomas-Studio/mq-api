@@ -1,0 +1,8 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/contract" },
+    { "path": "packages/db" },
+    { "path": "apps/server" }
+  ]
+}

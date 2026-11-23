@@ -1,0 +1,28 @@
+{
+  "name": "@mequest/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Migrations, roles, RLS policies, tenant scoping and the integration test database (ADR-0011, ADR-0012, ADR-0013).",
+  "sideEffects": [],
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing/index.ts"
+  },
+  "scripts": {
+    "migrate": "bun src/bin/migrate.ts"
+  },
+  "dependencies": {
+    "@effect/platform-bun": "4.1.5",
+    "@effect/sql-pg": "4.1.5",
+    "@mequest/contract": "workspace:*",
+    "effect": "4.1.5"
+  },
+  "devDependencies": {
+    "@effect/vitest": "4.1.5",
+    "@testcontainers/postgresql": "12.2.2",
+    "@types/bun": "1.4.5",
+    "testcontainers": "12.2.2",
+    "vitest": "5.1.1"
+  }
+}

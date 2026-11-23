@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "include": [],
+  "compilerOptions": {
+    // Type checking only: Bun runs the TypeScript sources directly (ADR-0028).
+    // Declarations are emitted to .tsbuild so project references can check incrementally.
+    "outDir": "${configDir}/.tsbuild",
+    "rootDir": "${configDir}",
+    "incremental": true,
+    "composite": true,
+    "emitDeclarationOnly": true,
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "NodeNext",
+    "moduleDetection": "force",
+    "verbatimModuleSyntax": true,
+    "allowJs": false,
+    "rewriteRelativeImportExtensions": true,
+    "erasableSyntaxOnly": true,
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "noErrorTruncation": true,
+    "types": []
+  }
+}

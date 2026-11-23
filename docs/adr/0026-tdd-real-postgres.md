@@ -1,6 +1,6 @@
 # ADR-0026: Test-first, integration-first on real Postgres
 
-Status: Accepted · 2026-11-23
+Status: Accepted · 2026-11-23 · amended by ADR-0028 (local Postgres source)
 
 ## Context
 
@@ -12,8 +12,11 @@ tenant transactions, ledger arithmetic) live exactly there.
 
 - Red-green-refactor by default.
 - `@effect/vitest`: `it.effect`, `it.layer(layer)(name, (it) => …)`, `it.prop`.
-- Real Postgres: Testcontainers locally, a service container in CI; migrations,
-  roles and RLS applied; tests isolated by rolled-back transactions or schema per worker.
+- Real Postgres: any server named by `TEST_DATABASE_URL` (CI service container,
+  local Postgres, Neon branch), else Testcontainers. Migrations, roles and RLS
+  are applied once to a template database; each test file gets its own database
+  cloned from it, so `SqlClient`, `SystemSql` and committed transactions behave
+  as in production.
 - External providers (Stripe, Paystack, AI models, Resend, Expo push) replaced by
   Layer test doubles; no module mocking.
 - Pure domain logic (pricing, proration, discount caps, banding, policy gates,

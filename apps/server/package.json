@@ -1,0 +1,21 @@
+{
+  "name": "@mequest/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "HTTP entrypoint: HttpApi handlers, middleware and Main (ADR-0024).",
+  "scripts": {
+    "dev": "bun --watch src/Main.ts",
+    "start": "bun src/Main.ts"
+  },
+  "dependencies": {
+    "@effect/platform-bun": "4.1.5",
+    "@mequest/contract": "workspace:*",
+    "effect": "4.1.5"
+  },
+  "devDependencies": {
+    "@effect/vitest": "4.1.5",
+    "@types/bun": "1.4.5",
+    "vitest": "5.1.1"
+  }
+}

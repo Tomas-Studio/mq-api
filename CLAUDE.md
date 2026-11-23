@@ -1,6 +1,6 @@
 # mq-api
 
-Platform API for the new MEQuest web and mobile apps. Effect v4, TypeScript, Postgres (Neon).
+Platform API for the new MEQuest web and mobile apps. Effect v4, TypeScript, Bun, Postgres (Neon).
 
 Read before changing anything:
 
@@ -11,9 +11,10 @@ Tone for docs, comments and commit messages: direct and professional.
 
 ## Effect version and the reference source
 
-- Effect is pinned exactly: `effect`, `@effect/platform-node`, `@effect/sql-pg`,
+- Effect is pinned exactly: `effect`, `@effect/platform-bun`, `@effect/sql-pg`,
   `@effect/vitest`, `@effect/ai-*` all at the same version (currently 4.1.5).
-  Never use `^` or `~` for Effect packages. Bump them together in one PR (ADR-0002).
+  Never use `^` or `~` (`bunfig.toml` sets `install.exact`). Bump them together
+  in one PR (ADR-0002).
 - `reference/effect` is the Effect source checked out at the installed tag
   (`git -C reference/effect describe --tags` must name `effect@<installed version>`).
   Move it to the new tag in the same PR that bumps Effect.
@@ -40,7 +41,7 @@ Tone for docs, comments and commit messages: direct and professional.
 | `Config.string`, `Config.redacted`, `Config.integer` | `Config.String("X")`, `Config.Redacted("X")`, `Config.Int("X")`, `Config.Port`, `Config.URL`, `Config.Boolean`, `Config.Duration`, `Config.withDefault` |
 | `.addSuccess(...)` / `.addError(...)` chains | `HttpApiEndpoint.get("name", "/path", { success, error, payload })` |
 | group implementation | `HttpApiBuilder.group(Api, "group", (handlers) => handlers.handle("name", (ctx) => …))` |
-| serving | `HttpRouter.serve(HttpApiBuilder.layer(Api).pipe(Layer.provide(groupLayers)))` with `NodeHttpServer.layer(() => createServer(), { port })`; run via `NodeRuntime.runMain` |
+| serving | `HttpRouter.serve(HttpApiBuilder.layer(Api).pipe(Layer.provide(groupLayers)))` with `BunHttpServer.layerConfig({ port: Config.Port("PORT") })` from `@effect/platform-bun`; run via `Layer.launch(…).pipe(BunRuntime.runMain)`; tests use `BunHttpServer.layerTest` + `HttpApiClient.make(Api)` |
 | security middleware | `class Authentication extends HttpApiMiddleware.Service<Authentication, { provides: CurrentPerson }>()("mq/Authentication", { security: { cookie: HttpApiSecurity.apiKey({ in: "cookie", key: "mq_session" }), bearer: HttpApiSecurity.bearer }, error: Unauthorized }) {}`; implement each scheme as `(httpEffect, { credential, endpoint, group }) => …` |
 | endpoint metadata | `.annotate(Key, value)` where `Key` is a `Context.Key` (e.g. `Context.Reference`) |
 | errors | `class NotFound extends Schema.TaggedError<NotFound>()("NotFound", { id: Id }) {}`; HTTP status via the `httpApiStatus` annotation (pattern in `effect/http-api/HttpApiError.ts`) |
@@ -77,8 +78,10 @@ When an idiom is not in this table, look it up in the reference before writing i
 
 ## Database (Neon)
 
-- Create roles only with SQL migrations, never in the Neon Console: Console roles
-  join `neon_superuser`, which has `BYPASSRLS`.
+- Create runtime roles (`mq_app`, `mq_system`, `mq_ctx_*`) only with SQL
+  migrations, never in the Neon Console: Console roles join `neon_superuser`,
+  which has `BYPASSRLS`. `mq_migrator` is the Neon project's owner role and is
+  never used at runtime.
 - Pooled endpoint for server queries. Direct connections for `LISTEN`, the worker
   (cluster storage uses session advisory locks), migrations and the ETL.
 - Every tenant table: `organisation_id NOT NULL`, RLS enabled and forced.
@@ -86,14 +89,37 @@ When an idiom is not in this table, look it up in the reference before writing i
 
 ## Testing (ADR-0026)
 
-- Test first. Integration tests run against real Postgres (Testcontainers locally,
-  service container in CI) with migrations, roles and RLS applied.
+- Test first. Integration tests (`*.integration.test.ts`) run against real
+  Postgres: the server named by `TEST_DATABASE_URL` (CI service container, local
+  Postgres, Neon branch), else Testcontainers. Migrations, roles and RLS are
+  applied once to a template database; each test file gets its own clone
+  (`TestDatabase.layer`).
+- Tests run under Bun through vitest (`bun run --bun vitest`), never `bun test`:
+  `@effect/vitest` needs vitest (ADR-0028).
 - Replace external providers with Layer test doubles; never module-mock.
 - Pure pricing, policy and grading logic gets property tests (`it.prop`).
 
 ## Commands
 
-Added with the Slice 0 scaffold (pnpm workspace + Turborepo).
+Bun 1.4 for everything (ADR-0028). Local settings go in `.env.local` (see `.env.example`); Bun loads it.
+
+| Task | Command |
+|---|---|
+| Install | `bun install` (exact versions, isolated linker; commit `bun.lock`) |
+| Type check | `bun run check` (`tsc -b`, TypeScript 7) |
+| Lint and format check | `bun run lint` (oxlint + dprint); fix with `bun run format` |
+| All tests | `bun run test` (vitest under Bun; integration tests need `TEST_DATABASE_URL` or Docker) |
+| Unit tests only | `bun run --bun vitest run --project unit` |
+| Integration tests only | `bun run --bun vitest run --project integration` |
+| Run the server | `bun run dev` (watch) or `bun apps/server/src/Main.ts`; `PORT` defaults to 8080 |
+| Migrate a database | `bun run db:migrate` with `DATABASE_MIGRATOR_URL` |
+
+Workspace: `packages/contract` (`@mequest/contract`, effect only), `packages/db` (`@mequest/db`:
+migrations, roles, `withTenant`, `SystemSql`, `findRlsViolations`, and `@mequest/db/testing`),
+`apps/server` (`@mequest/server`). Add a package to the root `tsconfig.json` references when you create it.
+New tenant tables go in a new migration with RLS enabled and forced, a `tenant_isolation` policy on
+`tenancy.current_organisation_id()`, and grants to their context role; `findRlsViolations` fails otherwise.
+New contexts add their `mq_ctx_<context>` role in a migration and in `src/Roles.ts`.
 
 ## Git
 
