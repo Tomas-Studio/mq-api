@@ -12,9 +12,14 @@ const nonTenantSchemas = ["public", "tenancy"]
 
 /**
  * Tables in a context schema that are deliberately global (no RLS). Each entry
- * needs an ADR reference. Empty so far.
+ * needs an ADR reference.
  */
-const globalTables: ReadonlyArray<string> = []
+const globalTables: ReadonlyArray<string> = [
+  // Identities are global; memberships are scoped (ADR-0012, ADR-0014).
+  "identity.people",
+  "identity.email_codes",
+  "identity.sessions"
+]
 
 /** The tenant root carries its id in `id`, not `organisation_id`. */
 const tenantRootTables = ["org.organisations"]

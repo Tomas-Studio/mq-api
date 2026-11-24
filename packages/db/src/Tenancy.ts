@@ -8,12 +8,35 @@ export interface TenantScope {
   readonly role: ContextRole
 }
 
-/** The tenant scope the current fiber is running in, if any. */
-const ActiveScope = Context.Reference<TenantScope | undefined>("mq/db/ActiveTenantScope", {
+/**
+ * The scope the current fiber is running in, if any. `organisationId` is
+ * undefined inside `withGlobal`.
+ */
+interface ActiveScope {
+  readonly organisationId: OrganisationId | undefined
+  readonly role: ContextRole
+}
+
+const ActiveScope = Context.Reference<ActiveScope | undefined>("mq/db/ActiveScope", {
   defaultValue: () => undefined
 })
 
 const setRole = (sql: SqlClient.SqlClient, role: ContextRole) => sql`SET LOCAL ROLE ${sql(role)}`
+
+/**
+ * Inside an open scope: switches to `role` for `self`, then restores the
+ * enclosing role, even if `self` fails.
+ */
+const switchRole = <A, E, R>(
+  sql: SqlClient.SqlClient,
+  active: ActiveScope,
+  role: ContextRole,
+  self: Effect.Effect<A, E, R>
+) =>
+  setRole(sql, role).pipe(
+    Effect.andThen(self),
+    Effect.ensuring(Effect.ignore(setRole(sql, active.role)))
+  )
 
 /**
  * Runs `self` as `role` with row-level security scoped to `organisationId`
@@ -26,8 +49,8 @@ const setRole = (sql: SqlClient.SqlClient, role: ContextRole) => sql`SET LOCAL R
  *
  * Nesting is allowed for the same organisation, so one context can call
  * another inside a transaction: the inner scope switches role and the outer
- * role is restored afterwards. Nesting for a different organisation is a
- * defect.
+ * role is restored afterwards. Nesting for a different organisation, or inside
+ * `withGlobal`, is a defect.
  */
 export const withTenant = (scope: TenantScope) =>
 <A, E, R>(
@@ -41,14 +64,12 @@ export const withTenant = (scope: TenantScope) =>
 
     if (active !== undefined) {
       if (active.organisationId !== scope.organisationId) {
+        const outer = active.organisationId ?? "a global scope"
         return yield* Effect.die(
-          new Error(`withTenant: cannot nest organisation ${scope.organisationId} inside ${active.organisationId}`)
+          new Error(`withTenant: cannot nest organisation ${scope.organisationId} inside ${outer}`)
         )
       }
-      return yield* setRole(sql, scope.role).pipe(
-        Effect.andThen(scoped),
-        Effect.ensuring(Effect.ignore(setRole(sql, active.role)))
-      )
+      return yield* switchRole(sql, active, scope.role, scoped)
     }
 
     return yield* sql.withTransaction(
@@ -62,3 +83,28 @@ export const withTenant = (scope: TenantScope) =>
       attributes: { "mq.organisation_id": scope.organisationId, "mq.db.role": scope.role }
     })
   )
+
+/**
+ * Runs `self` as `role` in a transaction, for a context whose tables are global
+ * rather than tenant-scoped (identity, ADR-0012). No organisation is set, so
+ * any tenant table the role could reach returns nothing.
+ *
+ * Inside an open scope it switches role and restores the enclosing role
+ * afterwards, keeping the enclosing organisation.
+ */
+export const withGlobal = (role: ContextRole) =>
+<A, E, R>(
+  self: Effect.Effect<A, E, R>
+): Effect.Effect<A, E | SqlError.SqlError, R | SqlClient.SqlClient> =>
+  Effect.gen(function*() {
+    const sql = yield* SqlClient.SqlClient
+    const active = yield* ActiveScope
+    const scoped = self.pipe(
+      Effect.provideService(ActiveScope, { organisationId: active?.organisationId, role })
+    )
+
+    if (active !== undefined) {
+      return yield* switchRole(sql, active, role, scoped)
+    }
+    return yield* sql.withTransaction(setRole(sql, role).pipe(Effect.andThen(scoped)))
+  }).pipe(Effect.withSpan("withGlobal", { attributes: { "mq.db.role": role } }))

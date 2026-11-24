@@ -2,7 +2,7 @@ import { assert, describe, expect, layer } from "@effect/vitest"
 import type { OrganisationId } from "@mequest/contract"
 import { Context, Effect, Exit, Layer } from "effect"
 import { SqlClient } from "effect/sql"
-import { findRlsViolations, SystemSql, withTenant } from "../src/index.ts"
+import { findRlsViolations, SystemSql, withGlobal, withTenant } from "../src/index.ts"
 import { TestDatabase } from "../src/testing/index.ts"
 
 interface Tenants {
@@ -10,7 +10,7 @@ interface Tenants {
   readonly globex: OrganisationId
 }
 
-// Two organisations with one programme each, written as the schema owner.
+// Two organisations with one programme each, and one person, written as the schema owner.
 class Fixtures extends Context.Service<Fixtures, Tenants>()("test/Fixtures") {
   static readonly layer = Layer.effect(
     Fixtures,
@@ -24,6 +24,7 @@ class Fixtures extends Context.Service<Fixtures, Tenants>()("test/Fixtures") {
       yield* sql`
         INSERT INTO programmes.programmes (organisation_id, name)
         VALUES (${acme.id}, 'Acme Leadership'), (${globex.id}, 'Globex Finance')`
+      yield* sql`INSERT INTO identity.people (email, name) VALUES ('ada@example.com', 'Ada Lovelace')`
       return { acme: acme.id, globex: globex.id }
     })
   )
@@ -33,6 +34,19 @@ const programmeNames = Effect.gen(function*() {
   const sql = yield* SqlClient.SqlClient
   const rows = yield* sql<{ readonly name: string }>`SELECT name FROM programmes.programmes ORDER BY name`
   return rows.map((row) => row.name)
+})
+
+const peopleEmails = Effect.gen(function*() {
+  const sql = yield* SqlClient.SqlClient
+  const rows = yield* sql<{ readonly email: string }>`SELECT email FROM identity.people ORDER BY email`
+  return rows.map((row) => row.email)
+})
+
+const connectionState = Effect.gen(function*() {
+  const sql = yield* SqlClient.SqlClient
+  const [state] = yield* sql<{ readonly role: string; readonly tenant: string | null }>`
+    SELECT current_user AS role, NULLIF(current_setting('app.organisation_id', true), '') AS tenant`
+  return state
 })
 
 layer(Fixtures.layer.pipe(Layer.provideMerge(TestDatabase.layer)), { timeout: "60 seconds" })("tenancy", (it) => {
@@ -86,11 +100,8 @@ layer(Fixtures.layer.pipe(Layer.provideMerge(TestDatabase.layer)), { timeout: "6
     it.effect("leaves no tenant setting or role behind on the pooled connection", () =>
       Effect.gen(function*() {
         const { acme } = yield* Fixtures
-        const sql = yield* SqlClient.SqlClient
         yield* withTenant({ organisationId: acme, role: "mq_ctx_programmes" })(programmeNames)
-        const [state] = yield* sql<{ readonly role: string; readonly tenant: string | null }>`
-          SELECT current_user AS role, NULLIF(current_setting('app.organisation_id', true), '') AS tenant`
-        expect(state).toEqual({ role: "mq_app", tenant: null })
+        expect(yield* connectionState).toEqual({ role: "mq_app", tenant: null })
       }))
 
     it.effect("restores the outer context role after a nested scope for the same tenant", () =>
@@ -115,6 +126,59 @@ layer(Fixtures.layer.pipe(Layer.provideMerge(TestDatabase.layer)), { timeout: "6
         const exit = yield* Effect.exit(
           withTenant({ organisationId: acme, role: "mq_ctx_org" })(
             withTenant({ organisationId: globex, role: "mq_ctx_programmes" })(programmeNames)
+          )
+        )
+        expect(Exit.hasDies(exit)).toBe(true)
+      }))
+  })
+
+  // Identities are global (ADR-0012): their schema has no RLS, and only its
+  // context role can reach it.
+  describe("withGlobal", () => {
+    it.effect("denies mq_app the identity schema outside a scope", () =>
+      Effect.gen(function*() {
+        const exit = yield* Effect.exit(peopleEmails)
+        expect(Exit.isFailure(exit)).toBe(true)
+      }))
+
+    it.effect("reads global rows as the context role, with no tenant set", () =>
+      Effect.gen(function*() {
+        expect(yield* withGlobal("mq_ctx_identity")(peopleEmails)).toEqual(["ada@example.com"])
+        expect(yield* withGlobal("mq_ctx_identity")(connectionState))
+          .toEqual({ role: "mq_ctx_identity", tenant: null })
+      }))
+
+    it.effect("keeps contexts apart: another context's role cannot read the schema", () =>
+      Effect.gen(function*() {
+        const exit = yield* Effect.exit(withGlobal("mq_ctx_programmes")(peopleEmails))
+        expect(Exit.isFailure(exit)).toBe(true)
+      }))
+
+    it.effect("leaves no role behind on the pooled connection", () =>
+      Effect.gen(function*() {
+        yield* withGlobal("mq_ctx_identity")(peopleEmails)
+        expect(yield* connectionState).toEqual({ role: "mq_app", tenant: null })
+      }))
+
+    it.effect("switches role inside a tenant scope and restores it afterwards", () =>
+      Effect.gen(function*() {
+        const { acme } = yield* Fixtures
+        const result = yield* withTenant({ organisationId: acme, role: "mq_ctx_programmes" })(
+          Effect.gen(function*() {
+            const people = yield* withGlobal("mq_ctx_identity")(peopleEmails)
+            const programmes = yield* programmeNames
+            return { people, programmes }
+          })
+        )
+        expect(result).toEqual({ people: ["ada@example.com"], programmes: ["Acme Leadership"] })
+      }))
+
+    it.effect("refuses to open a tenant scope inside a global one", () =>
+      Effect.gen(function*() {
+        const { acme } = yield* Fixtures
+        const exit = yield* Effect.exit(
+          withGlobal("mq_ctx_identity")(
+            withTenant({ organisationId: acme, role: "mq_ctx_programmes" })(programmeNames)
           )
         )
         expect(Exit.hasDies(exit)).toBe(true)

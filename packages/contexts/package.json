@@ -1,0 +1,20 @@
+{
+  "name": "@mequest/contexts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Bounded contexts shared by server and worker; each is imported only through its index.ts (ADR-0024).",
+  "sideEffects": [],
+  "exports": {
+    "./identity": "./src/identity/index.ts",
+    "./notifications": "./src/notifications/index.ts"
+  },
+  "dependencies": {
+    "@mequest/contract": "workspace:*",
+    "@mequest/db": "workspace:*",
+    "effect": "4.1.5"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.5"
+  }
+}

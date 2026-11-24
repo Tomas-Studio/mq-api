@@ -1,4 +1,5 @@
 import { HttpApi } from "effect/http-api"
+import { IdentityApi } from "./identity/IdentityApi.ts"
 import { SystemApi } from "./system/SystemApi.ts"
 
 /**
@@ -7,5 +8,6 @@ import { SystemApi } from "./system/SystemApi.ts"
  */
 export class MqApi extends HttpApi.make("mq-api")
   .add(SystemApi)
+  .add(IdentityApi)
   .prefix("/api")
 {}

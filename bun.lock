@@ -17,13 +17,27 @@
       "version": "0.0.0",
       "dependencies": {
         "@effect/platform-bun": "4.1.5",
+        "@mequest/contexts": "workspace:*",
         "@mequest/contract": "workspace:*",
+        "@mequest/db": "workspace:*",
         "effect": "4.1.5",
       },
       "devDependencies": {
         "@effect/vitest": "4.1.5",
         "@types/bun": "1.4.5",
         "vitest": "5.1.1",
+      },
+    },
+    "packages/contexts": {
+      "name": "@mequest/contexts",
+      "version": "0.0.0",
+      "dependencies": {
+        "@mequest/contract": "workspace:*",
+        "@mequest/db": "workspace:*",
+        "effect": "4.1.5",
+      },
+      "devDependencies": {
+        "@types/bun": "1.4.5",
       },
     },
     "packages/contract": {
@@ -125,6 +139,8 @@
     "@js-sdsl/ordered-map": ["@js-sdsl/ordered-map@4.4.2", "", {}, "sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw=="],
 
     "@kwsites/file-exists": ["@kwsites/file-exists@1.1.1", "", { "dependencies": { "debug": "^4.1.1" } }, "sha512-m9/5YGR18lIwxSFDwfE3oA7bWuq9kdau6ugN4H2rJeyhFQZcG9AgSHkQtSD15a8WvTgfz9aikZMrKPHvbpqFiw=="],
+
+    "@mequest/contexts": ["@mequest/contexts@workspace:packages/contexts"],
 
     "@mequest/contract": ["@mequest/contract@workspace:packages/contract"],
 

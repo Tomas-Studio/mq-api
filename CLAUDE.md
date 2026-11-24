@@ -115,11 +115,18 @@ Bun 1.4 for everything (ADR-0028). Local settings go in `.env.local` (see `.env.
 | Migrate a database | `bun run db:migrate` with `DATABASE_MIGRATOR_URL` |
 
 Workspace: `packages/contract` (`@mequest/contract`, effect only), `packages/db` (`@mequest/db`:
-migrations, roles, `withTenant`, `SystemSql`, `findRlsViolations`, and `@mequest/db/testing`),
+migrations, roles, `withTenant`, `withGlobal`, `SystemSql`, `findRlsViolations`, and `@mequest/db/testing`),
+`packages/contexts` (`@mequest/contexts/<context>`, one export per context: `identity`, `notifications`),
 `apps/server` (`@mequest/server`). Add a package to the root `tsconfig.json` references when you create it.
 New tenant tables go in a new migration with RLS enabled and forced, a `tenant_isolation` policy on
 `tenancy.current_organisation_id()`, and grants to their context role; `findRlsViolations` fails otherwise.
+Global tables (identity only, ADR-0012) have no RLS, are reachable only through `withGlobal(<context role>)`,
+and are listed in `globalTables` in `RlsInvariants.ts` with their ADR.
 New contexts add their `mq_ctx_<context>` role in a migration and in `src/Roles.ts`.
+
+Server tests (`apps/server/test`) run the whole API on `BunHttpServer.layerTest` against a database clone
+via `TestServer.ts`; sent email lands in `Mailbox`. The server needs `DATABASE_URL`, `IDENTITY_CODE_SECRET`
+and `MAIL_TRANSPORT=log` (the only transport until Resend lands; it writes sign-in codes to the log).
 
 ## Git
 

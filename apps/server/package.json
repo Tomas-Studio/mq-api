@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@effect/platform-bun": "4.1.5",
+    "@mequest/contexts": "workspace:*",
     "@mequest/contract": "workspace:*",
+    "@mequest/db": "workspace:*",
     "effect": "4.1.5"
   },
   "devDependencies": {

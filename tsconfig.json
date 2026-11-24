@@ -3,6 +3,7 @@
   "references": [
     { "path": "packages/contract" },
     { "path": "packages/db" },
+    { "path": "packages/contexts" },
     { "path": "apps/server" }
   ]
 }
