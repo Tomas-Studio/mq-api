@@ -327,7 +327,7 @@ attempts) are typed errors in the owning context's service, not Policy gates.
 - OpenTelemetry via `effect/observability` to Application Insights. Every
   service method is an `Effect.fn` span; every error response carries the trace ID.
 - Rate limiting: per-IP rules in Front Door WAF; a Postgres-backed limiter on
-  sign-in, code and invitation endpoints.
+  sign-in, code and invitation endpoints (ADR-0029).
 
 ---
 

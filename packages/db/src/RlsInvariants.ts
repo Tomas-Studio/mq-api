@@ -18,7 +18,9 @@ const globalTables: ReadonlyArray<string> = [
   // Identities are global; memberships are scoped (ADR-0012, ADR-0014).
   "identity.people",
   "identity.email_codes",
-  "identity.sessions"
+  "identity.sessions",
+  // Rate-limit counters, keyed by hash (ADR-0029).
+  "ratelimit.counters"
 ]
 
 /** The tenant root carries its id in `id`, not `organisation_id`. */

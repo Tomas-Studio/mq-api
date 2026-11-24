@@ -1,24 +1,25 @@
 import { Schema } from "effect"
 import { HttpApiEndpoint, HttpApiGroup, HttpApiSchema } from "effect/http-api"
 import { Public } from "../Annotations.ts"
-import { InvalidCode } from "./Errors.ts"
+import { InvalidCode, TooManyRequests } from "./Errors.ts"
 import { Email, EmailCode, Person, SessionTransport, SignedIn } from "./Person.ts"
 import { Authentication } from "./Security.ts"
 
 /** Email-code sign-in and the session it creates (ADR-0014, ADR-0015). */
 export const IdentityApi = HttpApiGroup.make("identity")
   .add(
-    // Always 202, whether or not the email belongs to anyone.
+    // 202 whether or not the email belongs to anyone; 429 likewise (ADR-0029).
     HttpApiEndpoint.post("requestEmailCode", "/auth/email-code", {
       payload: Schema.Struct({ email: Email }),
-      success: HttpApiSchema.Accepted
+      success: HttpApiSchema.Accepted,
+      error: TooManyRequests
     }).annotate(Public, true)
   )
   .add(
     HttpApiEndpoint.post("verifyEmailCode", "/auth/email-code/verify", {
       payload: Schema.Struct({ email: Email, code: EmailCode, transport: SessionTransport }),
       success: SignedIn,
-      error: InvalidCode
+      error: [InvalidCode, TooManyRequests]
     }).annotate(Public, true)
   )
   .add(

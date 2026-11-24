@@ -11,3 +11,8 @@ export class InvalidCode extends Schema.TaggedError<InvalidCode>()("InvalidCode"
 
 /** No valid session: missing, unknown, expired or signed out, or the person is suspended. */
 export class Unauthorized extends Schema.TaggedError<Unauthorized>()("Unauthorized", {}, { httpApiStatus: 401 }) {}
+
+/** Too many requests from this client address or for this email; retry after the given time (ADR-0029). */
+export class TooManyRequests extends Schema.TaggedError<TooManyRequests>()("TooManyRequests", {
+  retryAfterSeconds: Schema.Int
+}, { httpApiStatus: 429 }) {}

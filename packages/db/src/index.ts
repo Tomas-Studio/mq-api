@@ -1,5 +1,6 @@
 export { DatabaseLive } from "./Database.ts"
 export { migrations, runMigrations } from "./Migrations.ts"
+export { makePgRateLimiterStore, RateLimiterLive } from "./RateLimitStore.ts"
 export { findRlsViolations, type RlsViolation } from "./RlsInvariants.ts"
 export { AppRole, type ContextRole, contextRoles, SystemRole } from "./Roles.ts"
 export { SystemSql } from "./SystemSql.ts"

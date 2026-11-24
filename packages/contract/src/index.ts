@@ -1,6 +1,6 @@
 export { Public } from "./Annotations.ts"
 export { MqApi } from "./Api.ts"
-export { InvalidCode, Unauthorized } from "./identity/Errors.ts"
+export { InvalidCode, TooManyRequests, Unauthorized } from "./identity/Errors.ts"
 export { IdentityApi } from "./identity/IdentityApi.ts"
 export { Email, EmailCode, Person, SessionTransport, SignedIn } from "./identity/Person.ts"
 export { Authentication, CurrentPerson, CurrentSession, SessionCookie } from "./identity/Security.ts"

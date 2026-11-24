@@ -6,7 +6,7 @@ import { Effect, Option } from "effect"
 import { Cookies, HttpClient, HttpClientRequest } from "effect/http"
 import { HttpApiClient } from "effect/http-api"
 import { TestClock } from "effect/testing"
-import { TestServer } from "./TestServer.ts"
+import { fromNewAddress, TestServer } from "./TestServer.ts"
 
 // Each test signs in a person of its own, so the 30-second resend cooldown and
 // clock adjustments in one test never affect another.
@@ -37,10 +37,14 @@ const lastCodeSentTo = Effect.fn(function*(email: string) {
 
 const wrong = (code: string) => (code === "000000" ? "111111" : "000000")
 
-const api = HttpApiClient.make(MqApi)
+// Every request comes from a new client address, so only per-email limits
+// apply here; RateLimit.integration.test.ts covers the per-address ones.
+const api = HttpApiClient.make(MqApi, { transformClient: HttpClient.mapRequest(fromNewAddress) })
 
 const apiWithBearer = (token: string) =>
-  HttpApiClient.make(MqApi, { transformClient: HttpClient.mapRequest(HttpClientRequest.bearerToken(token)) })
+  HttpApiClient.make(MqApi, {
+    transformClient: HttpClient.mapRequest((request) => fromNewAddress(HttpClientRequest.bearerToken(request, token)))
+  })
 
 const requestCode = Effect.fn(function*(email: string) {
   const client = yield* api
@@ -67,6 +71,7 @@ const meWithBearer = Effect.fn(function*(token: string) {
 
 const verifyWithCookie = Effect.fn(function*(email: string, code: string) {
   const request = yield* HttpClientRequest.post("/api/auth/email-code/verify").pipe(
+    fromNewAddress,
     HttpClientRequest.bodyJson({ email, code, transport: "cookie" })
   )
   return yield* HttpClient.execute(request)
@@ -93,6 +98,7 @@ layer(TestServer, { timeout: "60 seconds" })("email-code sign-in", (it) => {
       Effect.gen(function*() {
         const email = yield* newPerson("Grace")
         const request = yield* HttpClientRequest.post("/api/auth/email-code").pipe(
+          fromNewAddress,
           HttpClientRequest.bodyJson({ email: `  ${email.toUpperCase()} ` })
         )
         const response = yield* HttpClient.execute(request)

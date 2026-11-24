@@ -3,13 +3,15 @@ import roles from "./migrations/0001_roles.ts"
 import organisations from "./migrations/0002_organisations.ts"
 import programmes from "./migrations/0003_programmes.ts"
 import identity from "./migrations/0004_identity.ts"
+import ratelimit from "./migrations/0005_ratelimit.ts"
 
 /** Keyed `<id>_<name>`; applied in id order. Never edit or reorder an applied migration. */
 export const migrations = {
   "0001_roles": roles,
   "0002_organisations": organisations,
   "0003_programmes": programmes,
-  "0004_identity": identity
+  "0004_identity": identity,
+  "0005_ratelimit": ratelimit
 }
 
 /**

@@ -125,8 +125,14 @@ and are listed in `globalTables` in `RlsInvariants.ts` with their ADR.
 New contexts add their `mq_ctx_<context>` role in a migration and in `src/Roles.ts`.
 
 Server tests (`apps/server/test`) run the whole API on `BunHttpServer.layerTest` against a database clone
-via `TestServer.ts`; sent email lands in `Mailbox`. The server needs `DATABASE_URL`, `IDENTITY_CODE_SECRET`
-and `MAIL_TRANSPORT=log` (the only transport until Resend lands; it writes sign-in codes to the log).
+via `TestServer.ts`; sent email lands in `Mailbox`. Tests set each request's client address with
+`X-Forwarded-For` (`fromAddress`, `fromNewAddress`); loopback is a trusted proxy there. The server needs
+`DATABASE_URL`, `IDENTITY_CODE_SECRET` and `MAIL_TRANSPORT=log` (the only transport until Resend lands; it
+writes sign-in codes to the log); `TRUSTED_PROXIES` is optional.
+
+Rate limits (ADR-0029) use Effect's `RateLimiter` from `effect/persistence` on `RateLimiterLive` from
+`@mequest/db` (Postgres, fixed window only). Read the client address from `request.remoteAddress`, never
+from a header: `HttpMiddleware.xForwardedHeaders` has already applied `TRUSTED_PROXIES`.
 
 ## Git
 

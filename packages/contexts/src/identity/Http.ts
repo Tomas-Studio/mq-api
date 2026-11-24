@@ -2,6 +2,7 @@ import { Authentication, CurrentPerson, CurrentSession, MqApi, SessionCookie } f
 import { DateTime, Duration, Effect, Layer, Redacted } from "effect"
 import { HttpEffect, HttpServerResponse } from "effect/http"
 import { HttpApiBuilder } from "effect/http-api"
+import { makeSignInLimits } from "./Limits.ts"
 import { Identity, SessionLifetime } from "./Service.ts"
 
 // httpOnly and Secure come from securitySetCookie's defaults; set here too so
@@ -21,10 +22,15 @@ const clearSessionCookie = HttpEffect.appendPreResponseHandler((_request, respon
 export const IdentityHttp = HttpApiBuilder.group(MqApi, "identity", (handlers) =>
   Effect.gen(function*() {
     const identity = yield* Identity
+    const limits = yield* makeSignInLimits
     return handlers
-      .handle("requestEmailCode", ({ payload }) => identity.requestEmailCode(payload.email))
-      .handle("verifyEmailCode", ({ payload }) =>
+      .handle("requestEmailCode", ({ payload, request }) =>
+        limits.codeRequest(request, payload.email).pipe(
+          Effect.andThen(identity.requestEmailCode(payload.email))
+        ))
+      .handle("verifyEmailCode", ({ payload, request }) =>
         Effect.gen(function*() {
+          yield* limits.verification(request)
           const signedIn = yield* identity.verifyEmailCode(payload)
           const expiresAt = DateTime.fromDateUnsafe(signedIn.expiresAt)
           if (payload.transport === "cookie") {
