@@ -1,6 +1,6 @@
 # ADR-0026: Test-first, integration-first on real Postgres
 
-Status: Accepted · 2026-11-23 · amended by ADR-0028 (local Postgres source)
+Status: Accepted · 2026-11-23 · amended by ADR-0028 (local Postgres source), ADR-0033 (what to test)
 
 ## Context
 

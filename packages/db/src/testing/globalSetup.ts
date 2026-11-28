@@ -52,7 +52,7 @@ const startContainer = async (): Promise<{ readonly url: string; readonly stop: 
     }
   } catch (cause) {
     throw new Error(
-      "Integration tests need Postgres 16 or later. Set TEST_DATABASE_URL to an admin connection string " +
+      "Integration tests need Postgres 18 or later (uuidv7(), ADR-0032). Set TEST_DATABASE_URL to an admin connection string " +
         "for a disposable server, or start Docker so Testcontainers can run one.",
       { cause }
     )

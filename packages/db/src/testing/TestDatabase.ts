@@ -3,6 +3,7 @@ import { Context, Effect, Layer, Redacted } from "effect"
 import { Reactivity } from "effect/reactivity"
 import type { SqlClient } from "effect/sql"
 import { inject } from "vitest"
+import { idTypes } from "../IdTypes.ts"
 import { AppRole, SystemRole } from "../Roles.ts"
 import { SystemSql } from "../SystemSql.ts"
 import { databaseUrl, TestRolePassword, uniqueDatabaseName } from "./urls.ts"
@@ -23,7 +24,7 @@ const make = Effect.gen(function*() {
     admin.unsafe(`CREATE DATABASE ${name} TEMPLATE ${template}`),
     () => Effect.orDie(admin.unsafe(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`))
   )
-  const owner = yield* PgClient.make({ url: Redacted.make(databaseUrl(adminUrl, { database: name })) })
+  const owner = yield* PgClient.make({ url: Redacted.make(databaseUrl(adminUrl, { database: name })), types: idTypes })
   return { name, owner }
 })
 
@@ -47,7 +48,7 @@ export class TestDatabase extends Context.Service<TestDatabase, TestDatabaseShap
     Effect.gen(function*() {
       const { name } = yield* TestDatabase
       return Layer.mergeAll(
-        PgClient.layer({ url: roleUrl(name, AppRole), applicationName: "mq-api/test" }),
+        PgClient.layer({ url: roleUrl(name, AppRole), applicationName: "mq-api/test", types: idTypes }),
         SystemSql.layerFrom(roleUrl(name, SystemRole))
       )
     })

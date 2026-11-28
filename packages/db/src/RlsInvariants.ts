@@ -31,7 +31,10 @@ const tenantRootTables = ["org.organisations"]
  * migrated database; an empty result means the invariants hold:
  *
  * - no runtime role is a superuser or can bypass RLS;
- * - every table in a context schema has RLS enabled and forced, with a policy;
+ * - every table in a context schema has RLS enabled and forced, with a
+ *   `tenant_isolation` policy;
+ * - any other policy on such a table is `FOR SELECT`, so it can widen what a
+ *   scope reads but never what it writes (ADR-0031);
  * - every such table scopes rows by a NOT NULL `organisation_id`, unless it is
  *   the tenant root.
  */
@@ -53,14 +56,19 @@ export const findRlsViolations = Effect.gen(function*() {
     readonly name: string
     readonly rls: boolean
     readonly forced: boolean
-    readonly policies: number
+    readonly tenantIsolation: boolean
+    readonly widerPolicies: ReadonlyArray<string>
     readonly organisationIdNotNull: boolean | null
   }>`
     SELECT
       n.nspname || '.' || c.relname AS name,
       c.relrowsecurity AS rls,
       c.relforcerowsecurity AS forced,
-      (SELECT count(*)::int FROM pg_policy p WHERE p.polrelid = c.oid) AS policies,
+      EXISTS (SELECT FROM pg_policy p WHERE p.polrelid = c.oid AND p.polname = 'tenant_isolation')
+        AS "tenantIsolation",
+      ARRAY(SELECT p.polname::text FROM pg_policy p
+        WHERE p.polrelid = c.oid AND p.polname <> 'tenant_isolation' AND p.polcmd <> 'r'
+        ORDER BY 1) AS "widerPolicies",
       (SELECT a.attnotnull FROM pg_attribute a
         WHERE a.attrelid = c.oid AND a.attname = 'organisation_id' AND NOT a.attisdropped) AS "organisationIdNotNull"
     FROM pg_class c
@@ -75,7 +83,10 @@ export const findRlsViolations = Effect.gen(function*() {
     if (globalTables.includes(table.name)) continue
     if (!table.rls) violations.push({ subject: table.name, problem: "RLS is not enabled" })
     if (!table.forced) violations.push({ subject: table.name, problem: "RLS is not forced" })
-    if (table.policies === 0) violations.push({ subject: table.name, problem: "no RLS policy" })
+    if (!table.tenantIsolation) violations.push({ subject: table.name, problem: "no tenant_isolation policy" })
+    for (const policy of table.widerPolicies) {
+      violations.push({ subject: table.name, problem: `policy ${policy} is not FOR SELECT` })
+    }
     if (!tenantRootTables.includes(table.name) && table.organisationIdNotNull !== true) {
       violations.push({ subject: table.name, problem: "no NOT NULL organisation_id column" })
     }

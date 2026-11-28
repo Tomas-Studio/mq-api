@@ -98,10 +98,18 @@ When an idiom is not in this table, look it up in the reference before writing i
   `@effect/vitest` needs vitest (ADR-0028).
 - Replace external providers with Layer test doubles; never module-mock.
 - Pure pricing, policy and grading logic gets property tests (`it.prop`).
+- Test by risk (ADR-0033). Tier 1, thorough and mutation-checked: RLS and tenancy, sign-in and sessions,
+  access checks, rate limits, money, grading and progress, the ETL, the API contract. Tier 2, ordinary
+  endpoints: one pass over HTTP (success, each declared error, permission). Tier 3, dev tooling: a few
+  smoke tests. Nothing for what types and schemas already enforce, or for Effect and Postgres themselves.
+  Prefer one invariant test across the whole schema or API over a test per feature, and test shared code
+  once. No flaky tests; the full suite stays under 5 minutes in CI.
 
 ## Commands
 
-Bun 1.4 for everything (ADR-0028). Local settings go in `.env.local` (see `.env.example`); Bun loads it.
+Bun 1.4 for everything (ADR-0028). Local settings go in `.env.local` (see `.env.example`). Bun loads it
+only for commands started from the repo root, so root scripts call entry files directly; `bun run --filter`
+runs in the package folder and would not see it.
 
 | Task | Command |
 |---|---|
@@ -113,19 +121,35 @@ Bun 1.4 for everything (ADR-0028). Local settings go in `.env.local` (see `.env.
 | Integration tests only | `bun run --bun vitest run --project integration` |
 | Run the server | `bun run dev` (watch) or `bun apps/server/src/Main.ts`; `PORT` defaults to 8080 |
 | Migrate a database | `bun run db:migrate` with `DATABASE_MIGRATOR_URL` |
+| Seed a local database | `bun run db:seed` with `DATABASE_MIGRATOR_URL` and `SEED_EMAIL` (idempotent; refuses roles subject to RLS) |
 
 Workspace: `packages/contract` (`@mequest/contract`, effect only), `packages/db` (`@mequest/db`:
-migrations, roles, `withTenant`, `withGlobal`, `SystemSql`, `findRlsViolations`, and `@mequest/db/testing`),
-`packages/contexts` (`@mequest/contexts/<context>`, one export per context: `identity`, `notifications`),
-`apps/server` (`@mequest/server`). Add a package to the root `tsconfig.json` references when you create it.
+migrations, roles, `withTenant`, `withGlobal`, `withPerson`, `SystemSql`, `findRlsViolations`, and
+`@mequest/db/testing`), `packages/contexts` (`@mequest/contexts/<context>`, one export per context: `access`,
+`identity`, `notifications`, `organisations`, `programmes`), `apps/server` (`@mequest/server`). Add a package
+to the root `tsconfig.json` references when you create it.
 New tenant tables go in a new migration with RLS enabled and forced, a `tenant_isolation` policy on
 `tenancy.current_organisation_id()`, and grants to their context role; `findRlsViolations` fails otherwise.
+Any other policy must be `FOR SELECT`. Tables whose rows name one person (memberships, roles) add a
+SELECT-only `own_rows` policy on `person_id = tenancy.current_person_id()`, read through
+`withPerson({ personId, role })`, which sets no organisation, cannot write and never nests (ADR-0031).
 Global tables (identity only, ADR-0012) have no RLS, are reachable only through `withGlobal(<context role>)`,
 and are listed in `globalTables` in `RlsInvariants.ts` with their ADR.
 New contexts add their `mq_ctx_<context>` role in a migration and in `src/Roles.ts`.
+Ids (ADR-0032) are `id uuid PRIMARY KEY DEFAULT uuidv7()` (Postgres 18+). On the wire and in TypeScript they
+are 32 lowercase hex digits with no hyphens (the contract's id schemas); every `PgClient` passes
+`types: idTypes` from `@mequest/db` so `uuid` columns read that way. Parameters need nothing: Postgres
+accepts the hyphen-free form.
+
+Organisation-scoped endpoints (ADR-0030) live under `/organisations/:organisationId/…` with
+`params: { organisationId: OrganisationId }` and `.middleware(OrganisationScope).middleware(Authentication)`,
+in that order: middleware added later runs first, and `OrganisationScope` needs `CurrentPerson`. Handlers
+read `CurrentOrganisation`; non-members, unknown and malformed ids get 404 `OrganisationNotFound`. A
+contract test fails if the path and the middleware disagree.
 
 Server tests (`apps/server/test`) run the whole API on `BunHttpServer.layerTest` against a database clone
-via `TestServer.ts`; sent email lands in `Mailbox`. Tests set each request's client address with
+via `TestServer.ts`; sent email lands in `Mailbox`. `Sessions.ts` adds people and signs them in
+(`newPerson`, `signedInApi`). Tests set each request's client address with
 `X-Forwarded-For` (`fromAddress`, `fromNewAddress`); loopback is a trusted proxy there. The server needs
 `DATABASE_URL`, `IDENTITY_CODE_SECRET` and `MAIL_TRANSPORT=log` (the only transport until Resend lands; it
 writes sign-in codes to the log); `TRUSTED_PROXIES` is optional.

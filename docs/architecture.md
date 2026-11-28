@@ -115,7 +115,7 @@ Layers that only provide the public service (ADR-0024).
 | `identity` | `identity` | People, credentials (password, passkey, email code, SSO link), sessions, SSO providers |
 | `access` | `access` | Platform roles, organisation memberships, programme roles and per-member overrides, capability catalogue, **Policy** |
 | `organisations` | `org` | Organisations, branding, custom domains, settings, "Powered by" |
-| `programmes` | `programme` | Programmes (legacy cohorts), phases, enrolment lifecycle, course assignment, onboarding/offboarding, admission letters, records, calendar, announcements |
+| `programmes` | `programmes` | Programmes (legacy cohorts), phases, enrolment lifecycle, course assignment, onboarding/offboarding, admission letters, records, calendar, announcements |
 | `content` | `content` | Courses, immutable versions, units, blocks, library collections, licences |
 | `learning` | `learning` | Progress events, knowledge checks, assignments and grading, flashcards, workbook and placement, mind maps, certificates, transcripts |
 | `assessment` | `assessment` | Question banks, assessments, invitations, attempts, proctoring, grading, Assess campaigns |
@@ -150,7 +150,7 @@ packages/contexts/src/programmes/
 Front Door ─► HttpApi router
   ─► Authentication middleware   cookie | bearer → CurrentPerson        (ADR-0015)
   ─► ClientVersion middleware    X-MeQuest-Client → metric; 426 if below min (ADR-0017)
-  ─► Tenant resolution           path / domain → CurrentOrganisation
+  ─► OrganisationScope           /organisations/:organisationId + membership → CurrentOrganisation (ADR-0030)
   ─► Policy middleware           endpoint's `Requires` annotation → 4 gates (ADR-0016)
   ─► handler                     calls one context service
   ─► context service             domain logic + typed errors
@@ -165,6 +165,9 @@ security scheme.
 
 - Every tenant-scoped table has `organisation_id uuid NOT NULL`, RLS enabled and
   `FORCE ROW LEVEL SECURITY`.
+- Ids are `uuid PRIMARY KEY DEFAULT uuidv7()` (Postgres 18). The API and
+  TypeScript write them as 32 lowercase hex digits without hyphens; every
+  `PgClient` reads them that way through `idTypes` (ADR-0032).
 - Policy shape: `USING (organisation_id = current_setting('app.organisation_id', true)::uuid)`.
 - Tenant work runs inside `sql.withTransaction` and starts with
   `SELECT set_config('app.organisation_id', $1, true)` and `SET LOCAL ROLE <context role>`.
@@ -185,7 +188,9 @@ security scheme.
   one workflow per organisation in that organisation's RLS scope.
 - A person who belongs to several organisations (e.g. a learner in two academies)
   sees a cross-organisation view assembled from one tenant-scoped read per
-  membership.
+  membership. The memberships themselves are found with `withPerson`, which sets
+  `app.person_id` instead of an organisation; membership tables admit the
+  person's own rows through a second, SELECT-only `own_rows` policy (ADR-0031).
 - CI asserts `rolbypassrls = false` for `mq_app` and that every table in a tenant
   schema has RLS forced.
 

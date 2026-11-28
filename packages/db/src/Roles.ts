@@ -16,5 +16,11 @@ export const SystemRole = "mq_system"
  * is a member with `INHERIT FALSE`: it can switch to these roles but gains none
  * of their grants without switching.
  */
-export const contextRoles = ["mq_ctx_org", "mq_ctx_programmes", "mq_ctx_identity", "mq_ctx_ratelimit"] as const
+export const contextRoles = [
+  "mq_ctx_org",
+  "mq_ctx_programmes",
+  "mq_ctx_identity",
+  "mq_ctx_ratelimit",
+  "mq_ctx_access"
+] as const
 export type ContextRole = (typeof contextRoles)[number]

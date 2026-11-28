@@ -2,6 +2,7 @@ import { PgClient } from "@effect/sql-pg"
 import { Config, Context, Effect, Layer, type Redacted } from "effect"
 import { Reactivity } from "effect/reactivity"
 import type { SqlClient } from "effect/sql"
+import { idTypes } from "./IdTypes.ts"
 
 /**
  * Cross-tenant SQL as `mq_system`, which bypasses row-level security (ADR-0013).
@@ -17,7 +18,7 @@ export class SystemSql extends Context.Service<SystemSql, SqlClient.SqlClient>()
   static readonly layerFrom = (url: Redacted.Redacted) =>
     Layer.effect(
       SystemSql,
-      PgClient.make({ url, maxConnections: 5, applicationName: "mq-api/system" })
+      PgClient.make({ url, maxConnections: 5, applicationName: "mq-api/system", types: idTypes })
     ).pipe(Layer.provide(Reactivity.layer))
 
   /** Reads `DATABASE_SYSTEM_URL` (pooled endpoint, `mq_system`). */

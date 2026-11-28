@@ -1,5 +1,6 @@
 import { PgClient } from "@effect/sql-pg"
 import { Config } from "effect"
+import { idTypes } from "./IdTypes.ts"
 
 /**
  * The runtime `SqlClient` as `mq_app` on Neon's pooled endpoint (ADR-0025).
@@ -8,5 +9,6 @@ import { Config } from "effect"
 export const DatabaseLive = PgClient.layerConfig({
   url: Config.Redacted("DATABASE_URL"),
   maxConnections: Config.Int("DATABASE_POOL_MAX").pipe(Config.withDefault(10)),
-  applicationName: Config.String("DATABASE_APPLICATION_NAME").pipe(Config.withDefault("mq-api"))
+  applicationName: Config.String("DATABASE_APPLICATION_NAME").pipe(Config.withDefault("mq-api")),
+  types: Config.succeed(idTypes)
 })

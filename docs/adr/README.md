@@ -33,6 +33,10 @@
 | [0027](0027-walking-skeleton-first.md) | Walking skeleton first, then dependency order |
 | [0028](0028-bun-runtime-and-toolchain.md) | Bun runtime and toolchain (amends 0002, 0025, 0026) |
 | [0029](0029-sign-in-rate-limits.md) | Rate-limit sign-in in Postgres (proposed) |
+| [0030](0030-organisation-in-the-path.md) | The current organisation comes from the path (proposed) |
+| [0031](0031-person-scoped-membership-reads.md) | A person reads their own memberships across organisations (proposed) |
+| [0032](0032-hyphen-free-uuidv7-ids.md) | Ids are UUIDv7, written without hyphens (proposed) |
+| [0033](0033-test-by-risk.md) | Test by risk (amends 0026; proposed) |
 
 New decisions get the next number. A decision is changed by a new ADR that
 supersedes the old one; the old one's status becomes `Superseded by ADR-NNNN`.

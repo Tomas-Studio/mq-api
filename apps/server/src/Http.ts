@@ -1,4 +1,7 @@
+import { AccessLive, OrganisationScopeLive } from "@mequest/contexts/access"
 import { AuthenticationLive, IdentityHttp, IdentityLive } from "@mequest/contexts/identity"
+import { OrganisationsHttp, OrganisationsLive } from "@mequest/contexts/organisations"
+import { ProgrammesHttp, ProgrammesLive } from "@mequest/contexts/programmes"
 import { MqApi } from "@mequest/contract"
 import { RateLimiterLive } from "@mequest/db"
 import { Config, Effect, Layer, Result } from "effect"
@@ -10,11 +13,15 @@ import { SystemHandlers } from "./system/SystemHandlers.ts"
 /**
  * The API with every group's handlers and middleware, served on whichever
  * HttpServer is provided. Needs `SqlClient`, `Mailer` and the identity config.
+ *
+ * Each `Layer.provide` step satisfies the ones above it; layers in the same
+ * step cannot satisfy each other.
  */
 export const ApiLive = HttpApiBuilder.layer(MqApi).pipe(
-  Layer.provide([SystemHandlers, IdentityHttp]),
-  Layer.provide(AuthenticationLive),
-  Layer.provide([IdentityLive, RateLimiterLive])
+  Layer.provide([SystemHandlers, IdentityHttp, OrganisationsHttp, ProgrammesHttp]),
+  Layer.provide([AuthenticationLive, OrganisationScopeLive]),
+  Layer.provide([IdentityLive, RateLimiterLive, OrganisationsLive, ProgrammesLive]),
+  Layer.provide(AccessLive)
 )
 
 /**

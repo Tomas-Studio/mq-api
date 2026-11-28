@@ -6,8 +6,11 @@
   "description": "Bounded contexts shared by server and worker; each is imported only through its index.ts (ADR-0024).",
   "sideEffects": [],
   "exports": {
+    "./access": "./src/access/index.ts",
     "./identity": "./src/identity/index.ts",
-    "./notifications": "./src/notifications/index.ts"
+    "./notifications": "./src/notifications/index.ts",
+    "./organisations": "./src/organisations/index.ts",
+    "./programmes": "./src/programmes/index.ts"
   },
   "dependencies": {
     "@mequest/contract": "workspace:*",

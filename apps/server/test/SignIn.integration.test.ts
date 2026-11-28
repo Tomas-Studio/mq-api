@@ -1,68 +1,26 @@
 import { assert, describe, expect, layer } from "@effect/vitest"
-import { Mailbox } from "@mequest/contexts/notifications"
-import { MqApi } from "@mequest/contract"
 import { TestDatabase } from "@mequest/db/testing"
 import { Effect, Option } from "effect"
 import { Cookies, HttpClient, HttpClientRequest } from "effect/http"
-import { HttpApiClient } from "effect/http-api"
 import { TestClock } from "effect/testing"
+import {
+  api,
+  apiWithBearer,
+  lastCodeSentTo,
+  mailTo,
+  newPerson,
+  requestCode,
+  signInWithBearer,
+  verify
+} from "./Sessions.ts"
 import { fromNewAddress, TestServer } from "./TestServer.ts"
-
-// Each test signs in a person of its own, so the 30-second resend cooldown and
-// clock adjustments in one test never affect another.
-let people = 0
-const newPerson = Effect.fn(function*(name: string) {
-  const { owner } = yield* TestDatabase
-  people += 1
-  const email = `${name.toLowerCase()}.${people}@example.com`
-  yield* owner`INSERT INTO identity.people (email, name) VALUES (${email}, ${name})`
-  return email
-})
 
 const suspend = Effect.fn(function*(email: string) {
   const { owner } = yield* TestDatabase
   yield* owner`UPDATE identity.people SET suspended_at = now() WHERE email = ${email}`
 })
 
-const mailTo = Effect.fn(function*(email: string) {
-  const mailbox = yield* Mailbox
-  return (yield* mailbox.sent).filter((message) => message.to === email)
-})
-
-const lastCodeSentTo = Effect.fn(function*(email: string) {
-  const code = (yield* mailTo(email)).at(-1)?.text.match(/\b(\d{6})\b/)?.[1]
-  assert(code !== undefined, `no code was emailed to ${email}`)
-  return code
-})
-
 const wrong = (code: string) => (code === "000000" ? "111111" : "000000")
-
-// Every request comes from a new client address, so only per-email limits
-// apply here; RateLimit.integration.test.ts covers the per-address ones.
-const api = HttpApiClient.make(MqApi, { transformClient: HttpClient.mapRequest(fromNewAddress) })
-
-const apiWithBearer = (token: string) =>
-  HttpApiClient.make(MqApi, {
-    transformClient: HttpClient.mapRequest((request) => fromNewAddress(HttpClientRequest.bearerToken(request, token)))
-  })
-
-const requestCode = Effect.fn(function*(email: string) {
-  const client = yield* api
-  yield* client.identity.requestEmailCode({ payload: { email } })
-})
-
-const verify = Effect.fn(function*(email: string, code: string) {
-  const client = yield* api
-  return yield* client.identity.verifyEmailCode({ payload: { email, code, transport: "bearer" } })
-})
-
-/** Signs in as a mobile client would; returns the bearer token. */
-const signInWithBearer = Effect.fn(function*(email: string) {
-  yield* requestCode(email)
-  const { token } = yield* verify(email, yield* lastCodeSentTo(email))
-  assert(token !== undefined, "bearer sign-in returned no token")
-  return token
-})
 
 const meWithBearer = Effect.fn(function*(token: string) {
   const client = yield* apiWithBearer(token)
@@ -81,7 +39,7 @@ layer(TestServer, { timeout: "60 seconds" })("email-code sign-in", (it) => {
   describe("requesting a code", () => {
     it.effect("emails a six-digit code to a known person", () =>
       Effect.gen(function*() {
-        const email = yield* newPerson("Ada")
+        const { email } = yield* newPerson("Ada")
         yield* requestCode(email)
         expect(yield* lastCodeSentTo(email)).toMatch(/^\d{6}$/)
       }))
@@ -96,7 +54,7 @@ layer(TestServer, { timeout: "60 seconds" })("email-code sign-in", (it) => {
     // an address with surrounding spaces before sending.
     it.effect("matches the email whatever its case and surrounding spaces", () =>
       Effect.gen(function*() {
-        const email = yield* newPerson("Grace")
+        const { email } = yield* newPerson("Grace")
         const request = yield* HttpClientRequest.post("/api/auth/email-code").pipe(
           fromNewAddress,
           HttpClientRequest.bodyJson({ email: `  ${email.toUpperCase()} ` })
@@ -108,7 +66,7 @@ layer(TestServer, { timeout: "60 seconds" })("email-code sign-in", (it) => {
 
     it.effect("sends at most one code every 30 seconds, and a new code replaces the old one", () =>
       Effect.gen(function*() {
-        const email = yield* newPerson("Alan")
+        const { email } = yield* newPerson("Alan")
         yield* requestCode(email)
         const first = yield* lastCodeSentTo(email)
         yield* requestCode(email)
@@ -127,7 +85,7 @@ layer(TestServer, { timeout: "60 seconds" })("email-code sign-in", (it) => {
 
     it.effect("sends nothing to a suspended person", () =>
       Effect.gen(function*() {
-        const email = yield* newPerson("Mallory")
+        const { email } = yield* newPerson("Mallory")
         yield* suspend(email)
         yield* requestCode(email)
         expect(yield* mailTo(email)).toEqual([])
@@ -137,7 +95,7 @@ layer(TestServer, { timeout: "60 seconds" })("email-code sign-in", (it) => {
   describe("verifying a code", () => {
     it.effect("signs a mobile client in with a bearer token", () =>
       Effect.gen(function*() {
-        const email = yield* newPerson("Katherine")
+        const { email } = yield* newPerson("Katherine")
         const token = yield* signInWithBearer(email)
         const me = yield* meWithBearer(token)
         expect(me).toMatchObject({ email, name: "Katherine" })
@@ -145,7 +103,7 @@ layer(TestServer, { timeout: "60 seconds" })("email-code sign-in", (it) => {
 
     it.effect("signs a web client in with an httpOnly cookie and no token in the body", () =>
       Effect.gen(function*() {
-        const email = yield* newPerson("Dorothy")
+        const { email } = yield* newPerson("Dorothy")
         yield* requestCode(email)
         const response = yield* verifyWithCookie(email, yield* lastCodeSentTo(email))
         expect(response.status).toBe(200)
@@ -167,7 +125,7 @@ layer(TestServer, { timeout: "60 seconds" })("email-code sign-in", (it) => {
 
     it.effect("accepts a code only once", () =>
       Effect.gen(function*() {
-        const email = yield* newPerson("Barbara")
+        const { email } = yield* newPerson("Barbara")
         yield* requestCode(email)
         const code = yield* lastCodeSentTo(email)
         yield* verify(email, code)
@@ -177,7 +135,7 @@ layer(TestServer, { timeout: "60 seconds" })("email-code sign-in", (it) => {
 
     it.effect("rejects a wrong code, and gives up on the code after five wrong attempts", () =>
       Effect.gen(function*() {
-        const email = yield* newPerson("Frances")
+        const { email } = yield* newPerson("Frances")
         yield* requestCode(email)
         const code = yield* lastCodeSentTo(email)
         for (let attempt = 1; attempt <= 5; attempt++) {
@@ -190,7 +148,7 @@ layer(TestServer, { timeout: "60 seconds" })("email-code sign-in", (it) => {
 
     it.effect("expires a code after ten minutes", () =>
       Effect.gen(function*() {
-        const email = yield* newPerson("Radia")
+        const { email } = yield* newPerson("Radia")
         yield* requestCode(email)
         const code = yield* lastCodeSentTo(email)
         yield* TestClock.adjust("10 minutes")
@@ -221,7 +179,7 @@ layer(TestServer, { timeout: "60 seconds" })("email-code sign-in", (it) => {
 
     it.effect("stores only a hash of the session token", () =>
       Effect.gen(function*() {
-        const email = yield* newPerson("Hedy")
+        const { email } = yield* newPerson("Hedy")
         const token = yield* signInWithBearer(email)
         const { owner } = yield* TestDatabase
         const rows = yield* owner<{ readonly row: string }>`SELECT to_jsonb(s)::text AS row FROM identity.sessions s`
@@ -231,7 +189,7 @@ layer(TestServer, { timeout: "60 seconds" })("email-code sign-in", (it) => {
 
     it.effect("signs out: the session stops working", () =>
       Effect.gen(function*() {
-        const email = yield* newPerson("Margaret")
+        const { email } = yield* newPerson("Margaret")
         const token = yield* signInWithBearer(email)
         const client = yield* apiWithBearer(token)
         yield* client.identity.signOut()
@@ -241,7 +199,7 @@ layer(TestServer, { timeout: "60 seconds" })("email-code sign-in", (it) => {
 
     it.effect("clears the cookie on sign-out", () =>
       Effect.gen(function*() {
-        const email = yield* newPerson("Mary")
+        const { email } = yield* newPerson("Mary")
         yield* requestCode(email)
         const signedIn = yield* verifyWithCookie(email, yield* lastCodeSentTo(email))
         const session = Option.getOrThrow(Cookies.get(signedIn.cookies, "mq_session"))
@@ -259,7 +217,7 @@ layer(TestServer, { timeout: "60 seconds" })("email-code sign-in", (it) => {
 
     it.effect("ends a session left unused for 30 days", () =>
       Effect.gen(function*() {
-        const email = yield* newPerson("Annie")
+        const { email } = yield* newPerson("Annie")
         const token = yield* signInWithBearer(email)
         yield* TestClock.adjust("30 days")
         const error = yield* Effect.flip(meWithBearer(token))
@@ -268,7 +226,7 @@ layer(TestServer, { timeout: "60 seconds" })("email-code sign-in", (it) => {
 
     it.effect("keeps a session in use alive past 30 days", () =>
       Effect.gen(function*() {
-        const email = yield* newPerson("Evelyn")
+        const { email } = yield* newPerson("Evelyn")
         const token = yield* signInWithBearer(email)
         yield* TestClock.adjust("20 days")
         yield* meWithBearer(token)
@@ -278,7 +236,7 @@ layer(TestServer, { timeout: "60 seconds" })("email-code sign-in", (it) => {
 
     it.effect("re-issues the cookie when a web session is extended", () =>
       Effect.gen(function*() {
-        const email = yield* newPerson("Lynn")
+        const { email } = yield* newPerson("Lynn")
         yield* requestCode(email)
         const signedIn = yield* verifyWithCookie(email, yield* lastCodeSentTo(email))
         const session = Option.getOrThrow(Cookies.get(signedIn.cookies, "mq_session"))
@@ -299,7 +257,7 @@ layer(TestServer, { timeout: "60 seconds" })("email-code sign-in", (it) => {
 
     it.effect("ends every session of a person who is suspended", () =>
       Effect.gen(function*() {
-        const email = yield* newPerson("Eve")
+        const { email } = yield* newPerson("Eve")
         const token = yield* signInWithBearer(email)
         yield* suspend(email)
         const error = yield* Effect.flip(meWithBearer(token))

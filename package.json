@@ -16,8 +16,9 @@
     "format": "oxlint --fix && dprint fmt",
     "test": "bun run --bun vitest run",
     "test:watch": "bun run --bun vitest",
-    "dev": "bun run --filter @mequest/server dev",
-    "db:migrate": "bun run --filter @mequest/db migrate"
+    "dev": "bun --watch apps/server/src/Main.ts",
+    "db:migrate": "bun packages/db/src/bin/migrate.ts",
+    "db:seed": "bun packages/db/src/bin/seed.ts"
   },
   "devDependencies": {
     "@types/bun": "1.4.5",
